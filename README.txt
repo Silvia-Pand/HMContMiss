@@ -1,4 +1,4 @@
-This .zip file contains the R functions used for the paper
+This repository contains the R functions used for the paper
 "Maximum likelihood estimation of hidden Markov models for
 continuous longitudinal data with missing responses and dropout" by
 - S.Pandolfi (University of Perugia, IT)  
