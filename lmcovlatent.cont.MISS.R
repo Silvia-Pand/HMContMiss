@@ -1,9 +1,8 @@
 lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
                              yv = rep(1,nrow(Y)),k,start=0,
                              tol=10^-8,maxit=1000,
-                             paramLatent="multilogit",
                              Mu=NULL,Si=NULL,Be=NULL,Ga=NULL,
-                             output=FALSE, out_se=FALSE, miss = FALSE,fort=FALSE){
+                             output=FALSE, out_se=FALSE, miss = FALSE){
 
   # Fit the LM model for continuous outcomes with individual covariates in the distribution of the latent process
   # dealing with intermittent missingness and dropout
@@ -25,8 +24,9 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
   # output = to return additional output
 
   # Preliminaries
+  param="multilogit"
   check_der = FALSE # to check score and info
-  param <- paramLatent
+  fort=FALSE
   sY = dim(Y)
   n = sY[1]
   TT = sY[2]
@@ -80,18 +80,11 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
 
   # for the transition probabilities
   if(is.null(X2)){
-    if(param=="difflogit"){
-      warning("with X2=NULL parametrization difflogit not considered")
-      param="multilogit"
-    }
     nc2 = 0
     Zlab = rep(1,n*(TT-1))
     nameGa = NULL
     Zndis = max(Zlab)
   }else{
-
-    #if(TT==2) X2 = array(X2,c(n,1,dim(X2)[2]))
-    #if(is.matrix(X2)) X2 = array(X2,c(n,TT-1,1))
     nc2 = dim(X2)[3] # number of covariates on the transition probabilities
     if(n!= dim(X2)[1]) stop("dimension mismatch between S and X2")
     nameGa = colnames(aperm(X2,c(1,3,2)))
@@ -101,7 +94,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
     out = aggr_data(Z); Zdis = out$data_dis; Zlab = out$label; Zndis = max(Zlab)
     if(nc2==1) Zdis=matrix(Zdis,length(Zdis),1)
   }
-  if(param=="multilogit"){
     if(drop) ZZdis = array(0,c(k+1,((k+1)-1)*(nc2+1),Zndis,k))
     else ZZdis = array(0,c(k,(k-1)*(nc2+1),Zndis,k))
     for(h in 1:k){
@@ -125,25 +117,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
         else ZZdis[,,i,h] = GGa%*%(diag(k-1)%x%t(zdis))
       }
     }
-  }else if(param=="difflogit"){#SP: da fare
-    Zlab = (((Zlab-1)*k)%x%rep(1,k))+rep(1,n*(TT-1))%x%(1:k)
-    ZZdis = array(0,c(k,k*(k-1)+(k-1)*nc2,Zndis*k))
-    j = 0
-    for(i in 1:Zndis){
-      for(h in 1:k){
-        j = j+1
-        if(k==2){
-          if(h == 1) GGa = as.matrix(c(0,1)) else GGa = as.matrix(c(1,0))
-        }else{
-          GGa = diag(k); GGa = GGa[,-h]
-        }
-        u = matrix(0,1,k); u[1,h] = 1
-        U = diag(k); U[,h] = U[,h]-1
-        U = U[,-1]
-        ZZdis[,,j] = cbind(u%x%GGa,U%x%t(Zdis[i,]))
-      }
-    }
-  }
 
   # When there is just 1 latent class
   if(k == 1){
@@ -188,24 +161,18 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
       mu = colMeans(Yv,na.rm=TRUE)
       Si = cov(Yv,use = "complete.obs"); std = sqrt(diag(Si))
     }
-    #Sostituito qui, controllare quando yv diverso da 1 con dropout
-    #yvv = rep(yv,TT)
-    #mu = colSums(yvv*Yv,na.rm=TRUE)/sum(yvv)
-    #Di = Yv-rep(1,n*TT)%o%mu
-    #Si = t(Di)%*%(yvv*Di)/sum(yvv)
-    
     std = sqrt(diag(Si))
     qt = qnorm((1:k)/(k+1))
     Mu = matrix(0,r,k)
     for(u in 1:k) Mu[,u] = qt[u]*std+mu
+    
     # parameters on initial probabilities
     be = array(0,(nc1+1)*(k-1))
     out = prob_multilogit(XXdis,be,Xlab)
     Piv = out$P; Pivdis = out$Pdis
     
     # parameters on transition probabilities
-    if(param=="multilogit"){
-      if(drop){
+    if(drop){
         Ga = matrix(0,(nc2+1)*((k+1)-1),k)
         Ga[1+(0:((k+1)-2))*(nc2+1),] = -log(10)
         PIdis = array(0,c(Zndis,k+1,k+1)); PI = array(0,c(k+1,k+1,n,TT))
@@ -223,14 +190,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
         if(drop) PI[h,,,2:TT] = array(as.vector(t(out$P)),c(1,k+1,n,TT-1))
         else PI[h,,,2:TT] = array(as.vector(t(out$P)),c(1,k,n,TT-1))
       }
-    }else if(param=="difflogit"){##SP: da fare
-      Ga = matrix(0,k*(k-1)+(k-1)*nc2)
-      Ga[1:((h-1)*k)] = -log(10)
-      PI = array(0,c(k,k,n,TT))
-      out = prob_multilogit(ZZdis,Ga,Zlab)
-      PIdis = out$Pdis; PI[,,,2:TT] = array(as.vector(t(out$P)),c(k,k,n,TT-1))
-      PI = aperm(PI,c(2,1,3,4))
-    }
   }
   # random initialization
   if(start==1){
@@ -250,8 +209,7 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
     out = prob_multilogit(XXdis,be,Xlab)
     Piv = out$P; Pivdis = out$Pdis
     # parameters on transition probabilities
-    if(param=="multilogit"){
-      if(drop){
+    if(drop){
         Ga = matrix(0,(nc2+1)*((k+1)-1),k)
         Ga[1+(0:((k+1)-2))*(nc2+1),] = -abs(rnorm(((k+1)-1)))     
         PIdis = array(0,c(Zndis,k+1,k+1)); PI = array(0,c(k+1,k+1,n,TT))
@@ -268,13 +226,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
         if(drop) PI[h,,,2:TT] = array(as.vector(t(out$P)),c(1,k+1,n,TT-1))
         else PI[h,,,2:TT] = array(as.vector(t(out$P)),c(1,k,n,TT-1))
       }
-    }else if(param=="difflogit"){#SP: da Fare
-      Ga = c(-abs(rnorm(k*(k-1))),rep(0,(k-1)*nc2))
-      PI = array(0,c(k,k,n,TT))
-      out = prob_multilogit(ZZdis,Ga,Zlab)
-      PIdis = out$Pdis; PI[,,,2:TT] = array(as.vector(t(out$P)),c(k,k,n,TT-1))
-      PI = aperm(PI,c(2,1,3,4))
-    }
   }
   # initialization as input
   if(start==2){
@@ -283,8 +234,7 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
     out = prob_multilogit(XXdis,be,Xlab)
     Piv = out$P; Pivdis = out$Pdis
     # parameters on transition probabilities
-    if(param=="multilogit"){
-      if(is.list(Ga)) stop("invalid mode (list) for Ga")
+    if(is.list(Ga)) stop("invalid mode (list) for Ga")
       if(drop){
         Ga = matrix(Ga,(nc2+1)*((k+1)-1),k)
         PIdis = array(0,c(Zndis,k+1,k+1)); PI = array(0,c(k+1,k+1,n,TT))
@@ -298,14 +248,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
         if(drop) PI[h,,,2:TT] = array(as.vector(t(out$P)),c(1,k+1,n,TT-1))
         else PI[h,,,2:TT] = array(as.vector(t(out$P)),c(1,k,n,TT-1))
       }
-    }else if(param=="difflogit"){##SP: da fare
-      if(is.list(Ga)) Ga = c(as.vector(t(Ga[[1]])),as.vector(Ga[[2]]))
-      if(length(Ga)!=k*(k-1)+(k-1)*nc2) stop("invalid dimensions for Ga")
-      PI = array(0,c(k,k,n,TT))
-      out = prob_multilogit(ZZdis,Ga,Zlab)
-      PIdis = out$Pdis; PI[,,,2:TT] = array(as.vector(t(out$P)),c(k,k,n,TT-1))
-      PI = aperm(PI,c(2,1,3,4))
-    }
   }
   if(drop){
     Piv = cbind(Piv,0)
@@ -339,11 +281,7 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
     if(miss){
         if(drop) Y1 = array(Y,c(n,TT,r,k+1)) else Y1 = array(Y,c(n,TT,r,k))
         Var = array(0,c(n,TT,r,r))
-        if(fort){
-          out = .Fortran("updatevar",Y,RR,n,TT,r,k,Mu,Si,Y1=Y1,Var=Var)
-          Y1 = out$Y1; Var = out$Var
-        }else{
-          for(i in 1:n) for(t in 1:TT){
+        for(i in 1:n) for(t in 1:TT){
             nr = sum(R[i,t,])
             if(nr==0){
               Y1[i,t,,1:k] = Mu
@@ -355,14 +293,12 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
               for(u in 1:k) Y1[i,t,indm,u] = Mu[indm,u]+Tmp%*%(Y[i,t,indo]-Mu[indo,u])
             }
           }
-        }
         Mu = matrix(0,r,k)
         for(u in 1:k){
           Yv1 = matrix(Y1[,,,u],n*TT)
           Mu[,u] = (t(Yv1)%*%Vv[,u])/sum(Vv[,u])
         }
       
-        
         Sitmp = matrix(0,r,r)
         for(u in 1:k){
           Yv1 = matrix(Y1[,,,u],n*TT)
@@ -370,13 +306,9 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
           Tmp = Yv1-rep(1,n*TT)%*%t(Mu[,u])
           Sitmp = Sitmp+t(Tmp)%*%(Vv[,u]*Tmp)+apply(Vv[,u]*Var1,c(2,3),sum)
         }
-        #          Si = Sitmp/(n*TT)
-        if(drop) Si  = Sitmp/dim(Yv2)[1] else Si = Sitmp/(n*TT) #SP: controllare se questo è necessario
-        
-      
-      #  print(c(itc,max(abs(Mu-Mu00))))
-    }else{
-      for(u in 1:k) Mu[,u] = (t(Yv)%*%Vv[,u])/sum(Vv[,u]) ##SP: controllare questo con drop=TRUE
+        if(drop) Si  = Sitmp/dim(Yv2)[1] else Si = Sitmp/(n*TT) 
+      }else{
+      for(u in 1:k) Mu[,u] = (t(Yv)%*%Vv[,u])/sum(Vv[,u]) 
       # Update Si
       Si = matrix(0,r,r)
       for(u in 1:k) Si= Si+ t(Yv-rep(1,n*TT)%o%Mu[,u])%*%diag(Vv[,u])%*%
@@ -390,8 +322,7 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
     be = out$be; Pivdis = out$Pdi; Piv = out$P
     if(drop) Piv = cbind(Piv,0)
     # Update Pi
-    if(param=="multilogit"){
-      for(h in 1:k){
+    for(h in 1:k){
         UU = NULL
         for(t in 2:TT) UU = rbind(UU,t(U[h,,,t]))
         tmp = ZZdis[,,,h]
@@ -399,18 +330,9 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
         tmp2 = PIdis[,,h]
         if(Zndis==1) tmp2 = matrix(tmp2,1,k)
         out = est_multilogit(UU,tmp,Zlab,Ga[,h],tmp2)
-        #PIdis[,,h] = out$Pdis; PI[h,,,2:TT] = array(as.vector(t(out$P)),c(1,k,n,TT-1)); Ga[,h] = out$be
         PIdis[,,h] = out$Pdis; PI[h,,,2:TT] = t(out$P); Ga[,h] = out$be
         }
-    }else if(param=="difflogit"){#SP: da fare
-      Tmp = aperm(U[,,,2:TT],c(1,3,4,2))
-      Tmp = matrix(Tmp,n*k*(TT-1),k)
-      out = est_multilogit(Tmp,ZZdis,Zlab,Ga,PIdis)
-      PIdis = out$Pdis; Ga = out$be
-      Tmp = array(out$P,c(k,n,TT-1,k))
-      PI[,,,2:TT] = aperm(Tmp,c(1,4,2,3))
-    }
-    # Compute log-likelihood
+       # Compute log-likelihood
     paro = par; par = c(as.vector(Piv),as.vector(PI),as.vector(Mu),as.vector(Si))
     if(any(is.na(par))) par = par[-which(is.na(par))]
     lko = lk
@@ -428,10 +350,8 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
     th = c(th,as.vector(Mu))
     th = c(th,Si[upper.tri(Si,TRUE)])
     th = c(th, be)
-    if(param=="multilogit"){
-      for(h in 1:k) th = c(th, Ga[,h])
-    }else if(param=="difflogit") th = c(th,Ga)
-
+    for(h in 1:k) th = c(th, Ga[,h])
+   
     out = lk_obs_latent_cont_MISS(th,Y,R,yv,XXdis,Xlab,ZZdis,Zlab,param,drop=drop)
     lk0 = out$lk; sc0 = out$sc
 
@@ -452,9 +372,7 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
     nMu = r*k
     nSi = r*(r+1)/2
     nbe = (1+nc1)*(k-1)
-    if(param=="multilogit"){
       if(drop) nga=(1+nc2)*((k+1)-1)*k else nga=(1+nc2)*(k-1)*k
-    }  else if(param=="difflogit") nga=(k+nc2)*(k-1)
     seMu = se[1:nMu]
     seSi = se[nMu+(1:nSi)]
     sebe = se[nMu+nSi+(1:nbe)]
@@ -464,10 +382,9 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
   # Compute number of parameters
   np = k*r+r*(r+1)/2 #Mu e Si
   np = np+(k-1)*(nc1+1) #Be
-  if(param=="multilogit"){#Ga 
-    if(drop) np = np+((k+1)-1)*(nc2+1)*k 
-    else np = np+(k-1)*(nc2+1)*k 
-  }else if(param=="difflogit")  np = np+(k-1)*(nc2+k) ##SP: da fare
+  if(drop) np = np+((k+1)-1)*(nc2+1)*k 
+  else np = np+(k-1)*(nc2+1)*k 
+  
   aic = -2*lk+np*2
   bic = -2*lk+np*log(n)
   # local decoding
@@ -485,7 +402,7 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
 
   dimnames(Be) = list(nameBe,logit=2:k)
   if(out_se) {seBe = matrix(sebe,nc1+1,k-1); dimnames(seBe) = list(nameBe,logit=2:k)}
-  if(param=="multilogit"){
+
     if(is.null(nameGa)){
       if(nc2==0) nameGa = c("Intercept") else nameGa = c("intercept", paste("X2",1:nc2,sep=""))
     }else{
@@ -527,36 +444,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
         }
       }
     }
-  }else if(param=="difflogit"){
-    Ga0 = Ga
-    Ga = vector("list",2)
-    seGa = vector("list",2)
-    Ga[[1]] = t(matrix(Ga0[1:(k*(k-1))],k-1,k))
-    Ga[[2]] = matrix(Ga0[(k*(k-1))+(1:((k-1)*nc2))],nc2,k-1)
-    if(is.null(nameGa)){
-      nameGa2 = paste("X2",1:nc2,sep="")
-    }else{
-      nameGa2 = nameGa
-    }
-    if (k==2) {
-      dimnames(Ga[[1]]) = list(intercept=1:k,logit=k)
-      dimnames(Ga[[2]])=list(nameGa2,logit=k)
-    } else if (k>2){
-      dimnames(Ga[[1]]) = list(intercept=1:k,logit=2:k)
-      dimnames(Ga[[2]])=list(nameGa2,logit=2:k)
-    }
-    if(out_se){
-      seGa[[1]] = t(matrix(sega[1:(k*(k-1))],k-1,k))
-      seGa[[2]] = matrix(sega[(k*(k-1))+(1:((k-1)*nc2))],nc2,k-1)
-      if(k==2){
-        dimnames(seGa[[1]]) = list(intercept=1:k,logit=k)
-        dimnames(seGa[[2]])=list(nameGa2,logit=k)
-      }else if (k>2){
-        dimnames(seGa[[1]]) = list(intercept=1:k,logit=2:k)
-        dimnames(seGa[[2]])=list(nameGa2,logit=2:k)
-      }
-    }
-  }
 
   # adjust output
   lk = as.vector(lk)

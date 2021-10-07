@@ -1,10 +1,10 @@
-lk_comp_cont_MISS <- function(Y,R,piv,Pi,Mu,Si,k,fort=TRUE,drop=FALSE){
+lk_comp_cont_MISS <- function(Y,R,piv,Pi,Mu,Si,k,drop=FALSE){
 
 	# Preliminaries
-	if(!fort){
-		dnorm1 <-function(y,mu,si2) f = exp(-(y-mu)^2/si2/2)/sqrt(2*pi*si2)
-		dmvnorm1 <-function(y,mu,Si) f = exp(-c((y-mu)%*%solve(Si)%*%(y-mu))/2)/sqrt(det(2*pi*Si))
-	}
+	
+	dnorm1 <-function(y,mu,si2) f = exp(-(y-mu)^2/si2/2)/sqrt(2*pi*si2)
+	dmvnorm1 <-function(y,mu,Si) f = exp(-c((y-mu)%*%solve(Si)%*%(y-mu))/2)/sqrt(det(2*pi*Si))
+	
 	sY = dim(Y)
 	n = as.integer(sY[1])
 	TT = as.integer(sY[2])
@@ -24,11 +24,6 @@ lk_comp_cont_MISS <- function(Y,R,piv,Pi,Mu,Si,k,fort=TRUE,drop=FALSE){
 	  Phi = array(1,c(n,k,TT)); L = array(0,c(n,k,TT))
 	}
 	if(miss){
-		if(fort){
-			RR = array(as.integer(1*R),c(n,TT,r))
-			out = .Fortran("normmiss",Y,RR,n,TT,r,k,Mu,Si,Phi=Phi)
-  		Phi = out$Phi
-		}else{
 			for(i in 1:n) for(t in 1:TT){
 			  if(all(!R[i,t,])){
 					Phi[i,,t] = 1
@@ -38,7 +33,7 @@ lk_comp_cont_MISS <- function(Y,R,piv,Pi,Mu,Si,k,fort=TRUE,drop=FALSE){
 					else for(u in 1:k) Phi[i,u,t] = pmax(dmvnorm1(Y[i,t,][indo],Mu[indo,u],Si[indo,indo]),0.1^300)
 				}
 			}
-		}
+		
 	}else{
 	  for(u in 1:k) for(t in 1:TT) Phi[,u,t] =  pmax(dmvnorm(matrix(Y[,t,],n,r),Mu[,u],Si),0.1^300)
 	}
@@ -50,7 +45,6 @@ lk_comp_cont_MISS <- function(Y,R,piv,Pi,Mu,Si,k,fort=TRUE,drop=FALSE){
 	  } 
 	}
 	
-		# print(c(2,1,proc.time()-t0))
 	# forward recursion
 	L[,,1] = Phi[,,1]%*%diag(piv)
 	if(n==1) Lt = sum(L[,,1])
@@ -65,10 +59,7 @@ lk_comp_cont_MISS <- function(Y,R,piv,Pi,Mu,Si,k,fort=TRUE,drop=FALSE){
 		lk = lk+sum(log(Lt))
 		L[,,t] = L[,,t]/Lt
 	}  
-	# print(c(2,3,proc.time()-t0))
 	if(n==1) pv = sum(L[1,,TT])
-	else pv = rowSums(L[,,TT])   #pv così meglio non farlo uscire che e' sbagliato
-	#lk = sum(log(pv))
+	else pv = rowSums(L[,,TT])   
 	out = list(lk=lk,Phi=Phi,L=L,pv=pv)
-
 }

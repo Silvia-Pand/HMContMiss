@@ -1,4 +1,4 @@
-lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_se=FALSE,piv=NULL,Pi=NULL,Mu=NULL,Si=NULL,indb=NULL,fort=TRUE){
+lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_se=FALSE,piv=NULL,Pi=NULL,Mu=NULL,Si=NULL,indb=NULL){
 
 
     # Preliminaries
@@ -19,12 +19,10 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
 
     ## Check and inpute for missing data
     miss = any(is.na(Y))
-#    drop = any(TTi<TT)
     drop = any(Y==999,na.rm=TRUE)
     R= NULL
     if(miss){
       R = (!is.na(Y))
-      if(fort) RR = array(as.integer(1*R),c(n,TT,r))
       Y[is.na(Y)] = 0
       cat("Missing data in the dataset.\n")
     }
@@ -73,7 +71,7 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
       aic = -2*lk+np*2
       bic = -2*lk+np*log(n)
       rownames(Mu) <- dimnames(Y)[[3]]
-      out =     		list(lk=lk,piv=piv,Pi=Pi,Mu=Mu,Si=Si,np=np, k = k, aic=aic,bic=bic,lkv=NULL,V=NULL,n = n, TT = TT, modBasic = mod )
+      out = list(lk=lk,piv=piv,Pi=Pi,Mu=Mu,Si=Si,np=np, k = k, aic=aic,bic=bic,lkv=NULL,V=NULL,n = n, TT = TT, modBasic = mod )
       class(out)="LMbasiccont"
       return(out)
     }
@@ -130,7 +128,7 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
       Pi[k+1,k+1,2:TT] = 1
     }
         # Compute log-likelihood
-    out = lk_comp_cont_MISS(Y,R,piv,Pi,Mu,Si,k, fort = fort,drop=drop)
+    out = lk_comp_cont_MISS(Y,R,piv,Pi,Mu,Si,k,drop=drop)
     lk = out$lk; Phi = out$Phi; L = out$L; pv = out$pv
     cat("------------|-------------|-------------|-------------|-------------|-------------|-------------|\n");
     cat("     mod    |      k      |    start    |     step    |     lk      |    lk-lko   | discrepancy |\n");
@@ -156,33 +154,23 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
       }  
       if(n==1) V[,,TT] = L[,,TT]/sum(L[1,,TT])
       else V[,,TT] = L[,,TT]/rowSums(L[,,TT])
-      if(fort){
-        U[,,TT] = .Fortran("prodnorm",L[,,TT-1],Phi[,,TT],Pi[,,TT],n,k,D=matrix(0,k,k))$D
-      }else{
-        for(i in 1:n){
+      for(i in 1:n){
           Tmp = (L[i,,TT-1]%o%Phi[i,,TT])*Pi[,,TT]
           U[,,TT] = U[,,TT]+Tmp/sum(Tmp)
         }
-      }
       if(TT>2){
         for(t in seq(TT-1,2,-1)){
-          #browser()
           M = (Phi[,,t+1]*M)%*%t(Pi[,,t+1])
           M = M/rowSums(M)
           V[,,t] = L[,,t]*M
           if(n==1) V[,,t] = V[,,t]/sum(V[1,,t])
           else V[,,t] = V[,,t]/rowSums(V[,,t])
-          if(fort){
-            U[,,t] = .Fortran("prodnorm",L[,,t-1],Phi[,,t]*M,Pi[,,t],n,k,D=matrix(0,k,k))$D
-          }else{
             for(i in 1:n){
               Tmp = (L[i,,t-1]%o%(Phi[i,,t]*M[i,]))*Pi[,,t]
               U[,,t] = U[,,t]+Tmp/sum(Tmp)
             }
-          }
         }
       }
-      # print(c(1,proc.time()-t0))
       M = (Phi[,,2]*M)%*%t(Pi[,,2])
       M = M/rowSums(M)
       V[,,1] = L[,,1]*M
@@ -194,29 +182,24 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
       # Update Mu
      if(drop) Vv = matrix(aperm(V,c(1,3,2)),n*TT,k+1) else Vv = matrix(aperm(V,c(1,3,2)),n*TT,k)
       if(miss){
-        # print(c(3.5,proc.time()-t0))
-        Mu00 = Mu; itc = 0  #FB: corretto update di Mu
+        Mu00 = Mu; itc = 0  
         while((max(abs(Mu00-Mu))>10^-10 || itc==0) & itc<10){
           Mu00 = Mu; itc = itc+1
          if(drop) Y1 = array(Y,c(n,TT,r,k+1)) else Y1 = array(Y,c(n,TT,r,k))
           Var = array(0,c(n,TT,r,r))
-          if(fort){
-            out = .Fortran("updatevar",Y,RR,n,TT,r,k,Mu,Si,Y1=Y1,Var=Var)
-            Y1 = out$Y1; Var = out$Var
-          }else{
-            for(i in 1:n) for(t in 1:TT){
-              nr = sum(R[i,t,])
-              if(nr==0){
-                Y1[i,t,,1:k] = Mu
-                Var[i,t,,] = Si
-              }else if(nr<r){
-                indo = R[i,t,]; indm = !R[i,t,]
-                Tmp = Si[indm,indo]%*%solve(Si[indo,indo])
-                Var[i,t,indm,indm] = Si[indm, indm]-Tmp%*%Si[indo,indm]
-                for(u in 1:k) Y1[i,t,indm,u] = Mu[indm,u]+Tmp%*%(Y[i,t,indo]-Mu[indo,u])
-              }
+          for(i in 1:n) for(t in 1:TT){
+            nr = sum(R[i,t,])
+            if(nr==0){
+              Y1[i,t,,1:k] = Mu
+              Var[i,t,,] = Si
+            }else if(nr<r){
+              indo = R[i,t,]; indm = !R[i,t,]
+              Tmp = Si[indm,indo]%*%solve(Si[indo,indo])
+              Var[i,t,indm,indm] = Si[indm, indm]-Tmp%*%Si[indo,indm]
+              for(u in 1:k) Y1[i,t,indm,u] = Mu[indm,u]+Tmp%*%(Y[i,t,indo]-Mu[indo,u])
             }
           }
+          
           Mub = matrix(0,r,k)
           for(u in 1:k){
             Yv1 = matrix(Y1[,,,u],n*TT)
@@ -238,14 +221,12 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
             Tmp = Yv1-rep(1,n*TT)%*%t(Mu[,u])
             Sitmp = Sitmp+t(Tmp)%*%(Vv[,u]*Tmp)+apply(Vv[,u]*Var1,c(2,3),sum)
           }
-#          Si = Sitmp/(n*TT)
           if(drop) Si  = Sitmp/dim(Yv2)[1] else Si = Sitmp/(n*TT) #SP: controllare se questo è necessario
           
           if(length(indb)==0) Mu00 = Mu
         }
-      #  print(c(itc,max(abs(Mu-Mu00))))
       }else{
-        Mu00 = Mu; itc = 0  #FB: corretto update di Mu
+        Mu00 = Mu; itc = 0  
         Mub = matrix(0,r,k)
         for(u in 1:k) Mub[,u] = (t(Yv)%*%Vv[,u])/sum(Vv[,u])
         while((max(abs(Mu00-Mu))>10^-10 || itc==0) & itc<10){
@@ -267,7 +248,6 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
         }
       }
   
-      # print(c(4,proc.time()-t0))
       # Update piv and Pi
       piv = colSums(V[,,1])/n
       U = pmax(U,10^-300)
@@ -299,7 +279,7 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
       if(any(is.na(par))) par = par[-which(is.na(par))]
       lko = lk
       # print(c(4.5,proc.time()-t0))
-      out = lk_comp_cont_MISS(Y,R,piv,Pi,Mu,Si,k, fort = fort,drop=drop)
+      out = lk_comp_cont_MISS(Y,R,piv,Pi,Mu,Si,k,drop=drop)
       # print(c(4.7,proc.time()-t0))
       lk = out$lk; Phi = out$Phi; L = out$L; pv = out$pv
       if(it/1 == round(it/1)) cat(sprintf("%11g",c(mod,k,start,it,lk,lk-lko,max(abs(par-paro)))),"\n",sep=" | ")
@@ -308,7 +288,7 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
     }
     V2 = aperm(V,c(1,3,2))
     if(drop) V2 = aperm(array(V2,c(n,TT,k+1,r)),c(1,2,4,3)) else V2 = aperm(array(V2,c(n,TT,k,r)),c(1,2,4,3))
-    if(miss) Yimp = apply(Y1*V2,c(1,2,3),sum) ##SP: modificato qui
+    if(miss) Yimp = apply(Y1*V2,c(1,2,3),sum) 
     # Compute information matrix if required
     if(out_se){
       th = NULL
@@ -319,7 +299,6 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
       if(mod==1) for(u in 1:k) th = c(th,C[,,u]%*%log(Pi[u,,2]))
 
       th0 = th-10^-5/2
-      #   browser()
       out = lk_obs_cont_miss(th0,Bm,Cm,k,Y,R,TT,r,mod)
       lk0 = out$lk; sc0 = out$sc
       lth = length(th)
@@ -411,7 +390,7 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
     out = list(lk=lk,piv=piv,Pi=Pi,Mu=Mu,Si=Si,np=np,k = k,aic=aic,bic=bic,lkv=lkv,V=V, n = n, TT = TT, modBasic = mod)
     if(miss){
       out$Y = Y
-      out$Yimp = Yimp  ##SP:modificato qui
+      out$Yimp = Yimp  
     }
     if(out_se){
       seMu = matrix(seMu,r,k)
