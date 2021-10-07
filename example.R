@@ -15,7 +15,6 @@ source("bootstrap.MISS.R")
 #### load simulated data ####
 load("example_data.RData")
 
-
 ##YYs: array containing the continuous outcomes 
 #with intermittent missing (coded as NA) and dropout (coded as 999)
 
@@ -30,7 +29,7 @@ dim(XXs)
 head(XXs[,1,])
 
 #### Basic HM model with a given number of states ####
-est = lmbasic.cont.MISS(YYs,k=3,modBasic=1,fort=FALSE)
+est = lmbasic.cont.MISS(YYs,k=3,modBasic=1)
 
 #individual covariates affecting the initial probabilities
 X1 <- XXs[,1,]
@@ -43,21 +42,18 @@ X2 <- XXs[,2:TT,]
 # both a deterministic and a random rule
 
 estcov <- lmcovlatent.cont.MISS(Y=YYs,X1=X1,X2=X2,k=2,
-                               param="multilogit",
-                               start=0, 
-                               fort=TRUE,
-                               output=TRUE,
-                               out_se=TRUE)
+                                start=0, 
+                                output=TRUE,
+                                out_se=TRUE)
+
 nrep <-2
-Kmax<-5
+Kmax<-4
 modv <- vector("list",1)
 bicv <- numeric(Kmax)
 for(k in 1:Kmax){
   print(k)
   modv[[k]] <- lmcovlatent.cont.MISS(Y=YYs,X1=X1,X2=X2,k=k,
-                                    param="multilogit",
                                     start=0, 
-                                    fort=TRUE,
                                     output=TRUE,
                                     out_se=TRUE)
   lktrace <- modv[[k]]$lk
@@ -66,8 +62,6 @@ for(k in 1:Kmax){
       print(c(k,k1))
       tmp <- lmcovlatent.cont.MISS(Y=YYs,k=k,
                                   X1=X1,X2=X2,
-                                  param="multilogit",
-                                  fort=TRUE, 
                                   start=1, 
                                   output=TRUE,
                                   out_se=TRUE)
@@ -80,14 +74,12 @@ for(k in 1:Kmax){
   bicv[k] <- modv[[k]]$bic
 }
 
-
 k <- which.min(bicv)
 
 #### Apply non parametric bootstrap with B bootrstrap samples ####
 outb <- bootstrap.MISS(Y = YYs,X1,X2,
-                  param="multilogit",
                   Mu = modv[[k]]$Mu,
                   Si=modv[[k]]$Si,
                   Be = modv[[k]]$Be,
                   Ga=modv[[k]]$Ga,
-                  B = 100)
+                  B = 2)
