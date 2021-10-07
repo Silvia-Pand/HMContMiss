@@ -16,7 +16,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
   # maxit = maximum number of iterations
   # param = type of parametrization for the transition probabilities:
   #         multilogit = standard multinomial logit for every row of the transition matrix
-  #         difflogit  = multinomial logit based on the difference between two sets of parameters
   # Mu = conditional means of the response variables (if start=2)
   # Si = var-cov matrix common to all states (if start=2)
   # Be = parameters on the initial probabilities (if start=2)
