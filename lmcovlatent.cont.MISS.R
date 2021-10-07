@@ -26,7 +26,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
   # Preliminaries
   param="multilogit"
   check_der = FALSE # to check score and info
-  fort=FALSE
   sY = dim(Y)
   n = sY[1]
   TT = sY[2]
@@ -40,7 +39,6 @@ lmcovlatent.cont.MISS <- function(Y,X1=NULL,X2=NULL,
   R= NULL
   if(miss){
     R = (!is.na(Y))
-    if(fort) RR = array(as.integer(1*R),c(n,TT,r))
     Y[is.na(Y)] = 0
     cat("Missing data in the dataset.\n")
   }
