@@ -70,8 +70,13 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
       np = k*r+r*(r+1)/2
       aic = -2*lk+np*2
       bic = -2*lk+np*log(n)
+      ent = NULL
+      clc = NULL
+      icl.bic = NULL
       rownames(Mu) <- dimnames(Y)[[3]]
-      out = list(lk=lk,piv=piv,Pi=Pi,Mu=Mu,Si=Si,np=np, k = k, aic=aic,bic=bic,lkv=NULL,V=NULL,n = n, TT = TT, modBasic = mod )
+      out = list(lk=lk,piv=piv,Pi=Pi,Mu=Mu,Si=Si,np=np, k = k, ent = ent, clc = clc, 
+                 icl.bic = icl.bic,
+                 aic=aic,bic=bic,lkv=NULL,V=NULL,n = n, TT = TT, modBasic = mod )
       class(out)="LMbasiccont"
       return(out)
     }
@@ -365,9 +370,16 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
     # Compute number of parameters
     rb = length(indb)
     np = (k-1)+k*(r-rb)+rb+r*(r+1)/2
+    if(drop) {
+      if(mod==0) np = np+(TT-1)*k*k
+      if(mod==1) np = np+k*k
+      if(mod>1) np = np+2*k*k
+    }
+    else{
     if(mod==0) np = np+(TT-1)*k*(k-1)
     if(mod==1) np = np+k*(k-1)
     if(mod>1) np = np+2*k*(k-1)
+    }
     aic = -2*lk+np*2
     bic = -2*lk+np*log(n)
 
@@ -386,8 +398,12 @@ lmbasic.cont.MISS  <- function(Y,k,start=0,modBasic=0,tol=10^-8,maxit=1000,out_s
     dimnames(Si)=list(item=1:r,item=1:r)
 
     rownames(Mu) <- dimnames(Y)[[3]]
-
-    out = list(lk=lk,piv=piv,Pi=Pi,Mu=Mu,Si=Si,np=np,k = k,aic=aic,bic=bic,lkv=lkv,V=V, n = n, TT = TT, modBasic = mod)
+    ent = -sum(V*log(pmax(V,10^-300))) # entropy
+    clc = -2*lk+2*ent
+    icl.bic = bic + 2*ent
+    out = list(lk=lk,piv=piv,Pi=Pi,Mu=Mu,Si=Si,np=np,k = k,
+               aic=aic,bic=bic, ent = ent, clc = clc, icl.bic= icl.bic,
+               lkv=lkv,V=V, n = n, TT = TT, modBasic = mod)
     if(miss){
       out$Y = Y
       out$Yimp = Yimp  
