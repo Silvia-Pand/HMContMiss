@@ -28,3 +28,7 @@ example.R ---> example file that loads the workspace file "example_data.RData" a
 
 
 example_data.RData  --> workspace file containing a random subsample from PBC data with 10 time occasion and 3 covariates 
+
+draw.lm.basic.cont.MISS.R  ---> simulate multivariate HM models for continuous outcomes with intermittent missigness and dropout
+
+example.sim.R  --> example file that calls function draw.lm.basic.cont.MISS.R and fits the HM model with intermittent missingness and dropout
